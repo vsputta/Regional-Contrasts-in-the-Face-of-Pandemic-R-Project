@@ -1,0 +1,312 @@
+---
+title: "Regional Contrasts in the Face of Pandemic: A Thorough Exploration of COVID-19 Impact Across U.S. Regions"
+
+author: "Varun Putta"
+date: "2024-01-20"
+output: pdf_document
+---
+
+-   <div>
+
+    ![](covid%20image.jpeg){width="549"}
+
+    </div>
+
+[***Synopsis :***]{.underline}
+
+The COVID-19 pandemic, also known as the coronavirus pandemic, is a global pandemic of coronavirus disease 2019 (COVID-19) caused by severe acute respiratory syndrome coronavirus 2 (SARS-CoV-2). The novel virus was first identified in an outbreak in the Chinese city of Wuhan in December 2019, and spread to other areas of Asia and then worldwide in early 2020. The World Health Organization (WHO) declared the outbreak a public health emergency of international concern (PHEIC) on 30 January 2020. The WHO ended its PHEIC declaration on 5 May 2023. As of 19 January 2024, the pandemic has caused 774,144,371 cases and 7,013,140 confirmed deaths, ranking it fifth in the list of the deadliest epidemics and pandemics in history.
+
+[***Objective :***]{.underline}
+
+To conduct a thorough comparative analysis of COVID-19 impact across U.S. regions, considering death per case ratios as the primary metric. The project aims to rate regions based on both the prevalence of cases and the severity of outcomes, followed by a statistical analysis by correlation coefficient to provide robust insights.
+
+```{r}
+## install and load the necessary libraries
+#install.packages("tidyverse")
+#install.packages("readr")
+#install.packages("ggplot2")
+#install.packages("janitor")
+#install.packages("dplyr")
+#install.packages("tidyr")
+#install.packages("lubridate")
+#install.packages("sqldf")
+```
+
+```{r}
+suppressMessages(library(tidyverse)) ## To easily install and load the 'Tidyverse'
+suppressMessages(library(readr)) ## To easily read rectangular data.
+suppressMessages(library(tidyr)) ## To create tidy data
+suppressMessages(library(ggplot2)) ## For mapping and ploting the data
+suppressMessages(library(lubridate)) ## Dates and times made easy with lubridate
+suppressMessages(library(janitor)) ## For cleaning and examining data
+suppressMessages(library(dplyr)) ## Data Manipulation
+suppressMessages(library(r02pro))
+suppressMessages(library(usmap)) ## To plot US State maps
+
+```
+
+[***Data Preparation***]{.underline} :
+
+One essential part of this project is to import and clean the data as needed. The Dataset provided contains the US COVID-19 data till 01/13/2021. The data is originally taken from The New York Times github repository: <https://github.com/nytimes/covid-19-data>
+
+I. Importing data and creating the Dataframe
+
+Setting up the working directory; 'US_counties.csv' Dataset has already been downloaded from Brightspace (University's academic platform)
+
+```{r}
+setwd("/Users/varun/Desktop/Intermediate R project")
+us_counties_r <- read_csv("us-counties.csv", show_col_types = FALSE)
+```
+
+II. Examining the DataFrame
+
+```{r}
+head(us_counties_r)
+```
+
+Now we can see each column from this DataFrame, which are 1 Date, 3 characters( County, Fips & State) and 2 Doubles( Cases & Deaths)
+
+```{r}
+str(us_counties_r)
+unique(us_counties_r['state'])
+n_distinct(us_counties_r$county)
+
+```
+
+There are 927,008 rows and 6 columns. The variables in the data are date, county, state, fips, cases and deaths. The columns Deaths and Cases have cumulative values according to the Date column. There are 55 states and 1930 Counties we'll be studying on.
+
+III. Create Tidy Data :
+
+-   The raw data has been loaded, now we need to pre-process it in order to get the data into a tidy format. To begin with, we need to find if there are any missing values and duplicate columns or rows.
+
+```{r}
+#Checking duplicate data
+
+us_counties_r[duplicated(us_counties_r),]
+
+#There are no duplicate points in this DataFrame.
+```
+
+```{r}
+#Checking missing values
+
+colSums(is.na(us_counties_r))
+```
+
+-   There are 8664 and 19775 Missing values in Fips and deaths
+
+```{r}
+distinct_state <-unique(us_counties_r$state[is.na(us_counties_r$deaths)]) 
+
+## To know which state has missing value in deaths
+distinct_state
+```
+
+-   The variable "Fips" is not useful for the project, hence we will remove that variable. We also know that missing values in terms of death variable correspondes to the state of "Puerto Rico". We wil drop Puerto Rico from the dataset when needed
+
+```{r}
+us_counties_r <- us_counties_r %>%
+  select(-fips) %>%
+  ## To make sure all the column names are inline with naming convention
+  clean_names()
+```
+
+-   For the project, we need to add a variable "region" to the "us_counties_r" dataframe. For this "State.region" data will be used which is pre-set in Base R.
+
+```{r}
+state.info <- tibble(state = state.name, state.region)
+state.info <- state.info %>%
+  rename(region = state.region)
+us_counties_r <- inner_join(us_counties_r, state.info, by = "state")
+glimpse(us_counties_r) #To get a glimpse of data
+```
+
+[***Exploratory Data Analysis:***]{.underline}
+
+```{r}
+
+#Let us analyze the scattering of total cases over states in the US
+
+us_counties_rt <- us_counties_r %>%
+  group_by(state) %>%
+  summarize(cases_total_main = sum(cases),
+            deaths_total_main = sum(deaths),
+            average_cases=mean(cases),
+            average_deaths=mean(deaths)) %>%
+  arrange(desc(cases_total_main))
+
+us_counties_rt$state <- factor(us_counties_rt$state,
+            levels = us_counties_rt$state[
+              order(us_counties_rt$cases_total_main)])
+
+#change the gradient type
+#add title 
+plot_usmap(data = us_counties_rt,
+  values = "cases_total_main",
+  color = "grey40", labels = TRUE) +
+  scale_fill_continuous(type = 'viridis', label = scales::comma) +
+  labs(title = "COVID-19 - Total Number of Cases for All States",
+    fill = "Cases") +
+  theme_classic() +
+  theme(
+    panel.background = element_blank(),
+    panel.border = element_blank(),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    legend.position = "right",
+    axis.line = element_blank(),
+    axis.ticks = element_blank(),
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank()
+  )
+```
+
+```{r}
+
+# Filter data for the last date
+latest_data <- us_counties_r %>%
+  filter(date == max(date))
+
+# Summarize cases by region for the last date
+all_region_cases <- latest_data %>%
+  group_by(region) %>%
+  summarize(`Total Cases` = sum(cases)) %>%
+  arrange(desc(`Total Cases`))
+
+# Now you have the top state.region with the highest number of cases on the last date
+all_region_cases
+
+# plot this data into Bar chart
+
+ggplot(all_region_cases, aes(x = region, y = `Total Cases`)) +
+  geom_bar(stat = "identity", fill = "skyblue", color = "black") +
+  labs(title = "Total Cases by Region on the Last Date", x = "Region", y = "Total Cases")
+
+```
+
+-   As we can see, South region leads with 8811189 total cases but there isnt a significant difference between North Central and West.
+
+```{r}
+# Summarize cases by region for the last date
+all_region_deaths <- latest_data %>%
+  group_by(region) %>%
+  summarize(`Total Deaths` = sum(deaths)) %>%
+  arrange(desc(`Total Deaths`))
+
+# Now you have the Region with the highest number of cases on the last date
+
+all_region_deaths
+
+#Lets plot this data into Bar Plot
+
+ggplot(all_region_deaths, aes(x = region, y = `Total Deaths`)) +
+  geom_bar(stat = "identity", fill = "skyblue", color = "grey") +
+  labs(title = "Total Deaths by Region on the Last Date", x = "Region", y = "Total Deaths")
+```
+
+-   As we can see, south region leads again with 132081 Deaths followed by Northeast.
+
+-   Next, we will calculate Case Fatality rate(Deaths per cases in %). We are also aware of the fact that "deaths" variable has missing values. To ease our calculation, we will turn these values to zero.
+
+-   We create a new variable "Case FR" in %
+
+```{r}
+## Assigning 0 to all missing value of variable "Death"
+latest_data[is.na(latest_data)] = 0
+
+## Creating a variable "`Case FR`".
+latest_data$`Case FR` <- latest_data$deaths/latest_data$cases * 100
+
+## Removing Infinite values
+latest_data$`Case FR`[!is.finite(latest_data$`Case FR`)] <- 0
+
+Highest_CFR_tp <- latest_data %>% arrange(desc(`Case FR`)) %>%
+  head(10)
+Highest_CFR_tp
+
+
+# Lets plot this data in us map 
+
+usmap::plot_usmap(data = `Highest_CFR_tp`,
+                  values = "Case FR",
+color = "grey40", labels = TRUE) + #change the gradient type, add comma on legend
+  scale_fill_continuous(type='viridis', label = scales:: comma) +
+#add title, subtitle, caption, and legend title
+  labs(title = "Case Fatality Rate for Top 10 States",
+       subtitle = "on 01/13/2021",
+       fill = "Case Fatality Rate") +
+   ## removing all the axes from the plotting.
+       theme_classic()+
+  theme(panel.background = element_blank(),
+        panel.border = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        legend.position = "right",
+        axis.line = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text.x =element_blank(),
+        axis.text.y = element_blank(),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank())
+
+CFR_region <- latest_data %>% 
+  group_by(region) %>%  # Group by region before calculating the mean
+  summarize(avg_Case_FR = mean(`Case FR`)) %>%  # Use summarize() to calculate mean
+  arrange(desc(avg_Case_FR))
+CFR_region
+```
+
+[***Statistical Analysis:***]{.underline}
+
+-   Let us find the correlation between Total Cases, Total Deaths and mean CFR in regions. This analysis can provide insights into how these variables are associated and whether there are patterns or relationships between them.
+
+```{r}
+all_region_cases 
+all_region_deaths 
+CFR_region
+
+# Merge the data based on the 'region' column
+
+merged_data <- merge(merge(CFR_region, all_region_cases,
+by = "region"), 
+all_region_deaths, 
+by = "region")
+
+colnames(merged_data)
+
+correlation_matrix <- cor(merged_data[, c("avg_Case_FR", "Total Cases", "Total Deaths")])
+
+correlation_matrix
+```
+
+***Correlation between avg_Case_FR and Total Cases***:
+
+-   The correlation coefficient is approximately -0.23. There is a weak negative correlation between the average case fatality rate (avg_Case_FR) and total cases suggesting that regions with higher total cases tend to have a slightly lower average case fatality rate, but the relationship is not very strong.
+
+***Correlation between avg_Case_FR and Total Deaths***:
+
+-   The correlation coefficient is approximately 0.64. There is a moderate to strong positive correlation between the average case fatality rate (avg_Case_FR) and total deaths implying that regions with higher average case fatality rates tend to have higher total deaths.
+
+***Correlation between Total Cases and Total Deaths:***
+
+-   The correlation coefficient is approximately 0.58. Interpretation: There is a moderate to strong positive correlation between total cases and total deaths suggesting that regions with higher total cases tend to have higher total deaths.
+
+[***Summary :***]{.underline}
+
+-   "Regional Contrasts in the Face of Pandemic: A Thorough Exploration of COVID-19 Impact Across U.S. Regions" reveals intriguing patterns in the data. The South region emerges as a focal point, leading both in total COVID-19 cases and deaths, signaling potential challenges in managing the outbreak. However, the nuances become apparent when examining the case fatality rate, where North Dakota in the North Central region takes the lead, indicating regional variations in healthcare and response effectiveness.
+
+-   These findings prompt a deeper exploration into the distinct strategies and policies implemented by different regions' governments in navigating the pandemic. The weakly negative relationship between the average case fatality rate and total cases suggests a complex interplay of factors influencing outcomes. Meanwhile, the moderately to strongly positive relationships between the average case fatality rate and total deaths, as well as between total cases and total deaths, underscore the need for nuanced regional analyses.
+
+-   This multi-dimensional approach provides a comprehensive understanding of the COVID-19 impact, offering valuable insights for policymakers, public health officials, and researchers. It emphasizes the importance of considering diverse factors when evaluating the effectiveness of regional responses to the ongoing pandemic.
+
+[***Limitations :***]{.underline}
+
+-   This exploration provides valuable insights, but it has limitations. These include potential data inaccuracies, current data, lack of consideration for population dynamics, a fixed time frame, variability in policies and reporting, and regional heterogeneity. Acknowledging these limitations is important for a nuanced interpretation and highlights areas for further research.
+
+[***References***]{.underline} ***:***
+
+1.  [Ritchie H](https://en.wikipedia.org/wiki/Hannah_Ritchie "Hannah Ritchie"), Mathieu E, Rodés-Guirao L, Appel C, Giattino C, Ortiz-Ospina E, et al. (2020--2022). ["Coronavirus Pandemic (COVID-19)"](https://ourworldindata.org/coronavirus). [*Our World in Data*](https://en.wikipedia.org/wiki/Our_World_in_Data "Our World in Data"). Retrieved 19 January 2024.
+
+2.  [https://www.who.int/healthtopics/coronavirus#tab=tab_1.](https://www.who.int/health-topics/coronavirus#tab=tab_1.)
